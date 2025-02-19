@@ -321,6 +321,30 @@
             0% { width: 0; }
             100% { width: 100%; }
         }
+
+        @media (max-width: 768px) {
+            .window {
+                min-width: 100%;
+                max-width: 100%;
+                height: calc(100% - 40px);
+                top: 0 !important;
+                left: 0 !important;
+            }
+
+            .folder-icon {
+                touch-action: none;
+                cursor: pointer;
+            }
+
+            .window-content {
+                height: calc(100% - 40px);
+                overflow-y: auto;
+            }
+
+            .project-image {
+                max-height: 200px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -442,48 +466,70 @@
                 folderIcon.style.top = `${20 + (Math.floor(index / 2) * 100)}px`;
 
                 let isDragging = false;
-                let startX, startY;
-                let lastClick = 0;
+                let initialX, initialY;
+                let currentX, currentY;
+                let lastTap = 0;
 
-                folderIcon.addEventListener('mousedown', e => {
+                function handleIconStart(e) {
                     const currentTime = new Date().getTime();
-                    const timeDiff = currentTime - lastClick;
+                    const tapLength = currentTime - lastTap;
                     
-                    if (timeDiff < 300) { // Double-clic détecté
+                    if (tapLength < 500 && tapLength > 0) {
                         openProject(project);
                         return;
                     }
                     
-                    lastClick = currentTime;
+                    lastTap = currentTime;
                     isDragging = true;
-                    startX = e.clientX - folderIcon.offsetLeft;
-                    startY = e.clientY - folderIcon.offsetTop;
-                    folderIcon.classList.add('dragging');
-                });
 
-                document.addEventListener('mousemove', e => {
+                    if (e.type === 'mousedown') {
+                        initialX = e.clientX - folderIcon.offsetLeft;
+                        initialY = e.clientY - folderIcon.offsetTop;
+                    } else if (e.type === 'touchstart') {
+                        initialX = e.touches[0].clientX - folderIcon.offsetLeft;
+                        initialY = e.touches[0].clientY - folderIcon.offsetTop;
+                    }
+                    
+                    folderIcon.classList.add('dragging');
+                }
+
+                function handleIconMove(e) {
                     if (!isDragging) return;
                     
                     e.preventDefault();
                     
-                    let newX = e.clientX - startX;
-                    let newY = e.clientY - startY;
+                    if (e.type === 'mousemove') {
+                        currentX = e.clientX - initialX;
+                        currentY = e.clientY - initialY;
+                    } else if (e.type === 'touchmove') {
+                        currentX = e.touches[0].clientX - initialX;
+                        currentY = e.touches[0].clientY - initialY;
+                    }
 
-                    // Limites du bureau
                     const maxX = desktop.clientWidth - folderIcon.offsetWidth;
                     const maxY = desktop.clientHeight - folderIcon.offsetHeight;
                     
-                    newX = Math.max(0, Math.min(newX, maxX));
-                    newY = Math.max(0, Math.min(newY, maxY));
+                    currentX = Math.max(0, Math.min(currentX, maxX));
+                    currentY = Math.max(0, Math.min(currentY, maxY));
 
-                    folderIcon.style.left = `${newX}px`;
-                    folderIcon.style.top = `${newY}px`;
-                });
+                    folderIcon.style.left = `${currentX}px`;
+                    folderIcon.style.top = `${currentY}px`;
+                }
 
-                document.addEventListener('mouseup', () => {
+                function handleIconEnd() {
                     isDragging = false;
                     folderIcon.classList.remove('dragging');
-                });
+                }
+
+                // Ajout des événements tactiles pour les icônes
+                folderIcon.addEventListener('touchstart', handleIconStart, {passive: false});
+                document.addEventListener('touchmove', handleIconMove, {passive: false});
+                document.addEventListener('touchend', handleIconEnd);
+
+                // Conserver les événements souris
+                folderIcon.addEventListener('mousedown', handleIconStart);
+                document.addEventListener('mousemove', handleIconMove);
+                document.addEventListener('mouseup', handleIconEnd);
 
                 desktop.appendChild(folderIcon);
             });
@@ -614,38 +660,62 @@
         function makeDraggable(element) {
             const titleBar = element.querySelector('.title-bar');
             let isDragging = false;
-            let initialMouseX;
-            let initialMouseY;
-            let initialElementX;
-            let initialElementY;
+            let initialX, initialY;
+            let currentX, currentY;
 
-            titleBar.addEventListener('mousedown', e => {
+            // Fonctions pour la gestion tactile
+            function handleStart(e) {
                 if (e.target.classList.contains('window-button')) return;
                 
                 isDragging = true;
-                const rect = element.getBoundingClientRect();
-                initialMouseX = e.clientX;
-                initialMouseY = e.clientY;
-                initialElementX = rect.left;
-                initialElementY = rect.top;
-                
-                // Mettre la fenêtre au premier plan
                 element.style.zIndex = getTopZIndex() + 1;
-            });
 
-            document.addEventListener('mousemove', e => {
+                if (e.type === 'mousedown') {
+                    initialX = e.clientX - element.offsetLeft;
+                    initialY = e.clientY - element.offsetTop;
+                } else if (e.type === 'touchstart') {
+                    initialX = e.touches[0].clientX - element.offsetLeft;
+                    initialY = e.touches[0].clientY - element.offsetTop;
+                }
+            }
+
+            function handleMove(e) {
                 if (!isDragging) return;
+                
+                e.preventDefault();
+                
+                if (e.type === 'mousemove') {
+                    currentX = e.clientX - initialX;
+                    currentY = e.clientY - initialY;
+                } else if (e.type === 'touchmove') {
+                    currentX = e.touches[0].clientX - initialX;
+                    currentY = e.touches[0].clientY - initialY;
+                }
 
-                const deltaX = e.clientX - initialMouseX;
-                const deltaY = e.clientY - initialMouseY;
+                // Limites du bureau
+                const maxX = desktop.clientWidth - element.offsetWidth;
+                const maxY = desktop.clientHeight - element.offsetHeight;
+                
+                currentX = Math.max(0, Math.min(currentX, maxX));
+                currentY = Math.max(0, Math.min(currentY, maxY));
 
-                element.style.left = initialElementX + deltaX + 'px';
-                element.style.top = initialElementY + deltaY + 'px';
-            });
+                element.style.left = currentX + 'px';
+                element.style.top = currentY + 'px';
+            }
 
-            document.addEventListener('mouseup', () => {
+            function handleEnd() {
                 isDragging = false;
-            });
+            }
+
+            // Événements tactiles
+            titleBar.addEventListener('touchstart', handleStart, {passive: false});
+            document.addEventListener('touchmove', handleMove, {passive: false});
+            document.addEventListener('touchend', handleEnd);
+
+            // Événements souris
+            titleBar.addEventListener('mousedown', handleStart);
+            document.addEventListener('mousemove', handleMove);
+            document.addEventListener('mouseup', handleEnd);
         }
 
         // Fonction utilitaire pour obtenir le plus grand z-index
